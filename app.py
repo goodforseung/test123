@@ -109,6 +109,7 @@ if run_bt:
     st.session_state["result"] = {
         "stats": stats, "equity": equity, "drawdown": drawdown, "trades": trades_df,
         "symbol": symbol, "strategy": strategy_name, "params_label": params_label,
+        "start": start_str, "end": end_str,
         # DB 적재용 record (lib.history.COLUMNS와 매핑)
         "record": {
             "strategy": strategy_name, "symbol": symbol,
@@ -131,6 +132,8 @@ if res:
     stats, equity, drawdown, trades_df = res["stats"], res["equity"], res["drawdown"], res["trades"]
 
     st.subheader(f"{res['symbol']} — {res['strategy']} ({res['params_label']}) 백테스트 결과")
+    st.caption(f"📅 이 결과의 기간: {res['start']} ~ {res['end']}  ·  "
+               f"사이드바 설정을 바꾸면 **'백테스트 실행'을 다시 눌러야** 갱신됩니다.")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("누적수익률", f"{stats['total_return']:+.2%}")
     c2.metric("CAGR", f"{stats['cagr']:+.2%}")
