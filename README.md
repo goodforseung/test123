@@ -7,9 +7,16 @@
 
 | 페이지 | 기능 |
 |--------|------|
-| 백테스트 실행 (`app.py`) | 종목·기간·MA·비용 입력 → 지표 카드 + 자산곡선/Drawdown + 거래내역 + **기록 저장** |
-| 그리드서치 (`pages/2_grid_search.py`) | fast/slow 범위 스윕 → Sharpe·수익률 히트맵 + 상위 N |
+| 백테스트 실행 (`app.py`) | 종목 + **전략 선택**(이동평균/RSI/볼린저) + 비용 → 지표 + 자산곡선/Drawdown + 거래내역 + **기록 저장** |
+| 그리드서치 (`pages/2_grid_search.py`) | (이동평균) fast/slow 범위 스윕 → Sharpe·수익률 히트맵 + 상위 N |
 | 기록 (`pages/3_history.py`) | Supabase에 저장된 백테스트 이력 조회·삭제 |
+| 팩터/포트폴리오 (`pages/4_factor.py`) | 유니버스(멀티종목) + 모멘텀/저변동성/동일비중 → 지표 + 자산곡선 |
+
+## 전략
+
+- **단일종목**(page 1): 이동평균 교차(추세추종), RSI·볼린저밴드(평균회귀). `quant/strategies/registry.py`에
+  등록 — 새 전략 추가 시 UI 자동 갱신.
+- **멀티종목 팩터**(page 4): 크로스섹셔널 모멘텀(12-1), 저변동성, 동일비중. `quant/factor.py`.
 
 ## 로컬 실행
 
@@ -35,6 +42,13 @@ create table backtests (
   total_return float8, cagr float8, max_drawdown float8,
   sharpe float8, win_rate float8, num_trades int
 );
+```
+
+기록에 전략·파라미터 컬럼을 추가하려면(다전략 지원), 기존 테이블에 한 번 실행:
+
+```sql
+alter table backtests add column if not exists strategy text;
+alter table backtests add column if not exists params text;
 ```
 
 ### 2) 자격증명 입력

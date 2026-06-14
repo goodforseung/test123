@@ -17,8 +17,9 @@ from st_supabase_connection import SupabaseConnection
 TABLE = "backtests"
 
 # DB에 적재하는 컬럼(테이블 스키마와 일치)
+# strategy/params 추가로 다전략 지원. 기존 fast/slow 컬럼은 잔존하되 미사용(null).
 COLUMNS = [
-    "symbol", "start_date", "end_date", "fast", "slow", "fees", "slippage",
+    "strategy", "symbol", "start_date", "end_date", "fees", "slippage", "params",
     "total_return", "cagr", "max_drawdown", "sharpe", "win_rate", "num_trades",
 ]
 

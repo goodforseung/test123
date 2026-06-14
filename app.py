@@ -1,12 +1,14 @@
 """Quant 백테스트 대시보드 — 페이지 1: 백테스트 실행 & 성과."""
 from __future__ import annotations
 
+import json
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
 from quant.data import get_price
-from quant.strategies import ma_cross_signals
+from quant.strategies import SINGLE_STRATEGIES
 from quant import engine, analysis
 from lib import history
 
@@ -23,8 +25,21 @@ with st.sidebar:
     with col2:
         end_date = st.date_input("종료일", value=pd.Timestamp.today())
 
-    fast = st.slider("Fast MA", min_value=3, max_value=100, value=20)
-    slow = st.slider("Slow MA", min_value=10, max_value=300, value=60)
+    # 전략 선택 + 선택 전략의 파라미터 동적 렌더 (registry 기반)
+    strategy_name = st.selectbox("전략", list(SINGLE_STRATEGIES.keys()))
+    spec = SINGLE_STRATEGIES[strategy_name]
+    params: dict = {}
+    for p in spec["params"]:
+        if isinstance(p["default"], float) or "step" in p:
+            params[p["key"]] = st.slider(
+                p["label"], float(p["min"]), float(p["max"]),
+                float(p["default"]), step=float(p.get("step", 0.1)),
+            )
+        else:
+            params[p["key"]] = st.slider(
+                p["label"], int(p["min"]), int(p["max"]), int(p["default"])
+            )
+
     fees = st.number_input("수수료율 (편도)", value=0.00015, format="%.5f", step=0.00005)
     slippage = st.number_input("슬리피지율", value=0.001, format="%.4f", step=0.0005)
     run_bt = st.button("백테스트 실행", type="primary", use_container_width=True)
@@ -40,14 +55,16 @@ def fetch_price(symbol: str, start: str, end: str) -> pd.DataFrame:
 def run_backtest(
     _close_values: list,
     _close_index: list,
-    fast: int,
-    slow: int,
+    strategy_name: str,
+    params_json: str,   # 캐시 키로 쓰기 위해 JSON 문자열로 받음
     fees: float,
     slippage: float,
 ):
     """캐싱을 위해 close를 list로 받아 내부에서 Series로 복원."""
     close = pd.Series(_close_values, index=pd.DatetimeIndex(_close_index), name="Close")
-    entries, exits = ma_cross_signals(close, fast=fast, slow=slow)
+    params = json.loads(params_json)
+    fn = SINGLE_STRATEGIES[strategy_name]["fn"]
+    entries, exits = fn(close, **params)
     pf = engine.run(close, entries, exits, fees=fees, slippage=slippage)
     stats = analysis.summary(pf)
     equity = pf.value()
@@ -66,7 +83,8 @@ def run_backtest(
 # ── 백테스트 실행 → 결과를 session_state에 저장 ──────────────────
 # (저장 버튼 클릭 시 앱이 재실행되어도 결과가 유지되도록 session_state에 보관)
 if run_bt:
-    if fast >= slow:
+    # 이동평균 교차일 때만 fast<slow 가드
+    if strategy_name == "이동평균 교차" and params.get("fast", 0) >= params.get("slow", 1):
         st.error("Fast MA는 Slow MA보다 작아야 합니다.")
         st.stop()
 
@@ -79,19 +97,23 @@ if run_bt:
         st.stop()
 
     close = price_df["Close"]
+    params_json = json.dumps(params, sort_keys=True)
     stats, equity, drawdown, trades_df = run_backtest(
         close.values.tolist(),
         close.index.tolist(),
-        fast, slow, fees, slippage,
+        strategy_name, params_json, fees, slippage,
     )
 
+    # 파라미터를 "fast=20, slow=60" 형태로 보기 좋게
+    params_label = ", ".join(f"{k}={v}" for k, v in params.items())
     st.session_state["result"] = {
         "stats": stats, "equity": equity, "drawdown": drawdown, "trades": trades_df,
-        "symbol": symbol, "fast": fast, "slow": slow,
+        "symbol": symbol, "strategy": strategy_name, "params_label": params_label,
         # DB 적재용 record (lib.history.COLUMNS와 매핑)
         "record": {
-            "symbol": symbol, "start_date": start_str, "end_date": end_str,
-            "fast": fast, "slow": slow, "fees": fees, "slippage": slippage,
+            "strategy": strategy_name, "symbol": symbol,
+            "start_date": start_str, "end_date": end_str,
+            "fees": fees, "slippage": slippage, "params": params_json,
             **stats,
         },
     }
@@ -108,7 +130,7 @@ res = st.session_state.get("result")
 if res:
     stats, equity, drawdown, trades_df = res["stats"], res["equity"], res["drawdown"], res["trades"]
 
-    st.subheader(f"{res['symbol']} — MA({res['fast']}/{res['slow']}) 백테스트 결과")
+    st.subheader(f"{res['symbol']} — {res['strategy']} ({res['params_label']}) 백테스트 결과")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("누적수익률", f"{stats['total_return']:+.2%}")
     c2.metric("CAGR", f"{stats['cagr']:+.2%}")
