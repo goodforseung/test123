@@ -53,8 +53,11 @@ def fetch_price(symbol: str, start: str, end: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner="그리드서치 실행 중... (시간이 걸릴 수 있습니다)")
 def run_grid(
-    _close_values: list,
+    _close_values: list,   # 언더스코어=캐시키 제외. 데이터 식별은 symbol/start/end로
     _close_index: list,
+    symbol: str,           # ↓ 캐시 키: 종목·기간 변경 시 재계산되도록 포함
+    start: str,
+    end: str,
     fasts: list[int],
     slows: list[int],
     fees: float,
@@ -83,6 +86,7 @@ if run_gs:
     close = price_df["Close"]
     results = run_grid(
         close.values.tolist(), close.index.tolist(),
+        symbol, start_str, end_str,
         fasts, slows, fees,
     )
 

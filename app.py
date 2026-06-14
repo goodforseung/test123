@@ -53,14 +53,21 @@ def fetch_price(symbol: str, start: str, end: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner="백테스트 실행 중...")
 def run_backtest(
-    _close_values: list,
+    _close_values: list,   # 언더스코어=캐시키 제외(대용량). 데이터 식별은 아래 symbol/start/end로
     _close_index: list,
+    symbol: str,           # ↓ 캐시 키: 종목·기간이 바뀌면 재계산되도록 반드시 포함
+    start: str,
+    end: str,
     strategy_name: str,
-    params_json: str,   # 캐시 키로 쓰기 위해 JSON 문자열로 받음
+    params_json: str,      # 캐시 키로 쓰기 위해 JSON 문자열로 받음
     fees: float,
     slippage: float,
 ):
-    """캐싱을 위해 close를 list로 받아 내부에서 Series로 복원."""
+    """캐싱을 위해 close를 list로 받아 내부에서 Series로 복원.
+
+    주의: _close_values/_close_index는 언더스코어라 st.cache_data가 해시하지 않는다.
+    따라서 데이터를 식별하는 symbol/start/end를 캐시 키에 포함해야 기간 변경이 반영된다.
+    """
     close = pd.Series(_close_values, index=pd.DatetimeIndex(_close_index), name="Close")
     params = json.loads(params_json)
     fn = SINGLE_STRATEGIES[strategy_name]["fn"]
@@ -101,6 +108,7 @@ if run_bt:
     stats, equity, drawdown, trades_df = run_backtest(
         close.values.tolist(),
         close.index.tolist(),
+        symbol, start_str, end_str,
         strategy_name, params_json, fees, slippage,
     )
 
