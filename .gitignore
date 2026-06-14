@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 data/cache/
 .DS_Store
+
+# Supabase 등 시크릿 — 절대 커밋 금지
+.streamlit/secrets.toml

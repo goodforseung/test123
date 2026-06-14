@@ -8,3 +8,4 @@ matplotlib>=3.7.0
 pyarrow>=14.0.0
 pykrx>=1.0.0
 yfinance>=0.2.30
+st-supabase-connection>=2.0.0

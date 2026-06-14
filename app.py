@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from quant.data import get_price
 from quant.strategies import ma_cross_signals
 from quant import engine, analysis
+from lib import history
 
 st.set_page_config(page_title="Quant Dashboard", page_icon="📈", layout="wide")
 st.title("백테스트 실행 & 성과")
@@ -62,7 +63,8 @@ def run_backtest(
     return stats, equity, drawdown, trades_df
 
 
-# ── 메인 영역: 결과 ─────────────────────────────────────────────
+# ── 백테스트 실행 → 결과를 session_state에 저장 ──────────────────
+# (저장 버튼 클릭 시 앱이 재실행되어도 결과가 유지되도록 session_state에 보관)
 if run_bt:
     if fast >= slow:
         st.error("Fast MA는 Slow MA보다 작아야 합니다.")
@@ -83,8 +85,30 @@ if run_bt:
         fast, slow, fees, slippage,
     )
 
-    # 핵심 지표 카드
-    st.subheader(f"{symbol} — MA({fast}/{slow}) 백테스트 결과")
+    st.session_state["result"] = {
+        "stats": stats, "equity": equity, "drawdown": drawdown, "trades": trades_df,
+        "symbol": symbol, "fast": fast, "slow": slow,
+        # DB 적재용 record (lib.history.COLUMNS와 매핑)
+        "record": {
+            "symbol": symbol, "start_date": start_str, "end_date": end_str,
+            "fast": fast, "slow": slow, "fees": fees, "slippage": slippage,
+            **stats,
+        },
+    }
+
+
+def _save_result():
+    """저장 버튼 콜백 — session_state의 record를 Supabase에 적재."""
+    ok, msg = history.save_backtest(st.session_state["result"]["record"])
+    st.session_state["save_msg"] = (ok, msg)
+
+
+# ── 결과 렌더링 (session_state에 결과가 있으면) ──────────────────
+res = st.session_state.get("result")
+if res:
+    stats, equity, drawdown, trades_df = res["stats"], res["equity"], res["drawdown"], res["trades"]
+
+    st.subheader(f"{res['symbol']} — MA({res['fast']}/{res['slow']}) 백테스트 결과")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("누적수익률", f"{stats['total_return']:+.2%}")
     c2.metric("CAGR", f"{stats['cagr']:+.2%}")
@@ -92,6 +116,15 @@ if run_bt:
     c4.metric("샤프지수", f"{stats['sharpe']:.2f}")
     c5.metric("승률", f"{stats['win_rate']:.2%}")
     c6.metric("거래횟수", f"{stats['num_trades']}")
+
+    # 기록 저장 버튼 (Supabase 미설정 시 안내)
+    if history.is_configured():
+        st.button("📌 이 결과 기록 저장", on_click=_save_result)
+    else:
+        st.caption("ℹ️ 기록 저장은 Supabase 설정 후 가능합니다 (.streamlit/secrets.toml).")
+    if "save_msg" in st.session_state:
+        ok, msg = st.session_state.pop("save_msg")
+        (st.success if ok else st.error)(msg)
 
     # 자산곡선 차트
     fig_eq = go.Figure()
