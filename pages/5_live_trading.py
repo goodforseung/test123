@@ -36,6 +36,9 @@ if payload:
     sigs = rep.get("signals") or []
     if sigs:
         sdf = pd.DataFrame(sigs)
+        if "name" in sdf.columns:  # "카카오(035720)" 표기
+            sdf["symbol"] = sdf.apply(
+                lambda r: f"{r['name']}({r['symbol']})" if r.get("name") else r["symbol"], axis=1)
         sdf = sdf.rename(columns={
             "symbol": "종목", "close": "종가", "ma_fast": "MA단기", "ma_slow": "MA장기",
             "gap_pct": "갭%", "held_qty": "보유", "signal_date": "신호일"})
