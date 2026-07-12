@@ -18,6 +18,44 @@ if not is_configured():
 if st.button("새로고침"):
     st.rerun()
 
+# ── 오늘의 리포트 (최신 daily_report) ────────────────────────
+payload = live_journal.load_latest_report()
+if payload:
+    rep = payload.get("report") or {}
+    st.subheader("오늘의 리포트")
+    st.caption(payload.get("summary_text", ""))
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("날짜 · 모드", f"{rep.get('date', '?')} {'🟢 드라이런' if rep.get('dry_run') else '🔴 실전송'}")
+    cash = (rep.get("balance") or {}).get("cash")
+    c2.metric("예수금", f"{cash:,}원" if isinstance(cash, (int, float)) else "?")
+    c3.metric("주문", f"{len(rep.get('orders') or [])}건")
+    c4.metric("스킵 / 에러",
+              f"{sum((rep.get('skips') or {}).values())} / {len(rep.get('errors') or [])}")
+
+    sigs = rep.get("signals") or []
+    if sigs:
+        sdf = pd.DataFrame(sigs)
+        sdf = sdf.rename(columns={
+            "symbol": "종목", "close": "종가", "ma_fast": "MA단기", "ma_slow": "MA장기",
+            "gap_pct": "갭%", "held_qty": "보유", "signal_date": "신호일"})
+        sdf = sdf[[c for c in ["종목", "종가", "MA단기", "MA장기", "갭%", "보유", "신호일"] if c in sdf.columns]]
+        st.caption("갭% = (MA단기−MA장기)/MA장기 — 0에 가까울수록 크로스 임박, 음수→양수 전환 시 매수 신호")
+        st.dataframe(
+            sdf.style.background_gradient(subset=["갭%"], cmap="RdYlGn", vmin=-15, vmax=15),
+            use_container_width=True, hide_index=True)
+
+    uni = rep.get("universe") or {}
+    if uni.get("added") or uni.get("removed"):
+        with st.expander(f"🔄 유니버스 변경 (기준일 {uni.get('as_of')})", expanded=True):
+            if uni.get("added"):
+                st.write("**추가**:", ", ".join(uni["added"]))
+            if uni.get("removed"):
+                st.write("**제외**:", ", ".join(uni["removed"]))
+    if uni.get("error"):
+        st.warning(f"유니버스 갱신 실패(기존 유지): {uni['error']}")
+    st.divider()
+
 df = live_journal.load_journal()
 if df.empty:
     st.info("아직 미러된 기록이 없습니다. 루프가 실행되면 자동으로 쌓입니다.")

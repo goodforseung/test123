@@ -13,6 +13,25 @@ from lib.history import _conn, is_configured
 TABLE = "trade_journal"
 
 
+def load_latest_report() -> dict | None:
+    """가장 최근 daily_report 이벤트의 payload(리포트 전문)를 반환. 없으면 None."""
+    if not is_configured():
+        return None
+    try:
+        res = (
+            _conn()
+            .table(TABLE)
+            .select("payload")
+            .eq("event", "daily_report")
+            .order("ts", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0]["payload"] if res.data else None
+    except Exception:
+        return None
+
+
 def load_journal(limit: int = 500) -> pd.DataFrame:
     """최근 이벤트를 ts 내림차순으로 조회. 실패 시 빈 DataFrame."""
     if not is_configured():
