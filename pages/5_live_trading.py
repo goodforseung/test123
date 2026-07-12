@@ -39,11 +39,18 @@ if payload:
         if "name" in sdf.columns:  # "카카오(035720)" 표기
             sdf["symbol"] = sdf.apply(
                 lambda r: f"{r['name']}({r['symbol']})" if r.get("name") else r["symbol"], axis=1)
+        # 트리거는 내일 하루 기준 경계값 — 도달 불가능(±30% 밖)이면 표시 생략
+        if "trigger_pct" in sdf.columns:
+            far = sdf["trigger_pct"].isna() | (sdf["trigger_pct"].abs() > 30) | (sdf.get("trigger", 0) <= 0)
+            sdf.loc[far, ["trigger", "trigger_pct"]] = None
         sdf = sdf.rename(columns={
             "symbol": "종목", "close": "종가", "ma_fast": "MA단기", "ma_slow": "MA장기",
-            "gap_pct": "갭%", "held_qty": "보유", "signal_date": "신호일"})
-        sdf = sdf[[c for c in ["종목", "종가", "MA단기", "MA장기", "갭%", "보유", "신호일"] if c in sdf.columns]]
-        st.caption("갭% = (MA단기−MA장기)/MA장기 — 0에 가까울수록 크로스 임박, 음수→양수 전환 시 매수 신호")
+            "gap_pct": "갭%", "trigger": "트리거가", "trigger_pct": "트리거%",
+            "held_qty": "보유", "signal_date": "신호일"})
+        sdf = sdf[[c for c in ["종목", "종가", "갭%", "트리거가", "트리거%",
+                               "MA단기", "MA장기", "보유", "신호일"] if c in sdf.columns]]
+        st.caption("갭% = (MA단기−MA장기)/MA장기 — 0 근접 = 크로스 임박 · "
+                   "트리거가 = 다음 종가가 이 값을 넘으면(갭<0) 골든크로스 / 깨지면(갭>0) 데드크로스")
         st.dataframe(
             sdf.style.background_gradient(subset=["갭%"], cmap="RdYlGn", vmin=-15, vmax=15),
             use_container_width=True, hide_index=True)
