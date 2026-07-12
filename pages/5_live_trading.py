@@ -66,6 +66,29 @@ if payload:
         st.warning(f"유니버스 갱신 실패(기존 유지): {uni['error']}")
     st.divider()
 
+# ── 가상 포트폴리오 ("라이브였다면" 성과) ────────────────────
+virt = live_journal.load_latest_virtual()
+if virt:
+    st.subheader("가상 포트폴리오 — 라이브였다면")
+    st.caption("드라이런 신호를 가상 체결(시가 + 수수료·슬리피지)한 성과. "
+               "실제 주문과 무관한 시뮬레이션입니다.")
+    v1, v2, v3, v4 = st.columns(4)
+    v1.metric("가상 자산", f"{virt.get('equity', 0):,}원",
+              f"{virt.get('total_return', 0):+.2%}")
+    v2.metric("초기 자본", f"{virt.get('init_cash', 0):,}원")
+    v3.metric("거래 횟수", f"{virt.get('n_trades', 0)}회")
+    v4.metric("MDD", f"{virt.get('max_drawdown', 0):.1%}")
+    curve = virt.get("curve") or []
+    if len(curve) > 1:
+        cdf = pd.DataFrame(curve, columns=["날짜", "가상자산"]).set_index("날짜")
+        st.line_chart(cdf, height=240)
+    else:
+        st.info("아직 가상 거래가 없어 곡선이 평평합니다 — 첫 신호가 나면 그려집니다.")
+    holdings = virt.get("holdings") or {}
+    if holdings:
+        st.caption("가상 보유: " + ", ".join(f"{s} {q}주" for s, q in holdings.items()))
+    st.divider()
+
 df = live_journal.load_journal()
 if df.empty:
     st.info("아직 미러된 기록이 없습니다. 루프가 실행되면 자동으로 쌓입니다.")
